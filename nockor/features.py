@@ -41,7 +41,7 @@ class Extractor(object):
         self.signal = None
         self.mfeat = np.zeros(self.keep_m)
         self.feat = [None] * (2 * self.delta_t + 1)
-        self.delta = [None] * (4 * self.delta_t + 2)
+        self.delta = [None] * (2 * self.delta_t + 1)
 
     def pump(self, samples):
         self._append(samples)
@@ -61,8 +61,7 @@ class Extractor(object):
             feat = np.log(1 + np.dot(power, self.melfilts))
             feat = fftpack.dct(feat)[:self.keep_m]
             feat[0] = energy
-            self.mfeat = (1 - cmn_lambda) * self.mfeat + cmn_lambda * feat
-            feat = feat - self.mfeat
+            # delta features
             self.feat.append(feat)
             self.feat.pop(0)
             if self.feat[0] is None: continue
@@ -70,7 +69,19 @@ class Extractor(object):
             for i in range(t):
                 delta += np.sign(i - delta_t) * self.feat[i]
             delta = delta / delta_den
-            feat = np.concatenate((self.feat[delta_t], delta))
+            # delta-delta features
+            self.delta.append(delta)
+            self.delta.pop(0)
+            if self.delta[0] is None: continue
+            ddelta = np.zeros(self.keep_m)
+            for i in range(t):
+                ddelta += np.sign(i - delta_t) * self.delta[i]
+            ddelta = delta / delta_den
+            # cepstral mean subtraction
+            feat = self.feat[delta_t]
+            self.mfeat = (1 - cmn_lambda) * self.mfeat + cmn_lambda * feat
+            feat = feat - self.mfeat
+            feat = np.concatenate((feat, delta))
             result = np.concatenate((result, np.reshape(feat, (1, len(feat)))))
         return result
 

@@ -2,6 +2,7 @@
 
 import sys
 import os
+import time
 import pickle
 import alsaaudio
 import numpy as np
@@ -9,7 +10,7 @@ import configargparse as cap
 import features
 
 class Recognizer(object):
-    def __init__(self, model_dir, rate=16000, alpha=0.02):
+    def __init__(self, model_dir, rate=16000, alpha=0.01):
         self.extractor = features.Extractor(rate=rate)
         self.alpha = alpha
         self.models = []
@@ -28,12 +29,15 @@ class Recognizer(object):
         alpha = self.alpha
         logprob = self.logprob
         X = self.extractor.pump(data)
-        if len(X) == 0: return None
+        if len(X) == 0:
+            self.logprob = (1 - alpha) * logprob
+            return (None, 0)
         logprobs = np.array([m.score_samples(X)[0] for m in self.models]).T
         for logprob1 in logprobs:
             logprob = (1 - alpha) * logprob + alpha * logprob1
         self.logprob = logprob
-        return self.mnames[np.argmax(logprob)]
+        i = np.argmax(logprob)
+        return (self.mnames[i], logprob[i])
 
 def main(argv=sys.argv):
     rate = 16000
@@ -48,16 +52,17 @@ def main(argv=sys.argv):
     ain.setchannels(1)
     ain.setrate(rate)
     ain.setformat(alsaaudio.PCM_FORMAT_S16_LE)
-    ain.setperiodsize(int(rate * 0.03))
+    ain.setperiodsize(int(rate * 0.01))
 
     recog = Recognizer(argv[1], rate=rate)
 
+    mname = None
     while True:
         _, data = ain.read()
         data = np.frombuffer(data, dtype='int16')
-        mname = recog.pump(data)
-        if mname is not None:
-            print(mname)
+        mname, logprob = recog.pump(data)
+        if mname is None: continue
+        print((time.time(), mname, logprob))
 
     return 0
 

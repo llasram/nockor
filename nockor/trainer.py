@@ -12,7 +12,7 @@ def main(argv=sys.argv):
     rate, data = wavfile.read(inpath)
     e = features.Extractor(rate=rate)
     X = e.pump(data)
-    model = GMM(n_components=128)
+    model = GMM(n_components=16, covariance_type='tied')
     model.fit(X)
     with open(outpath, 'wb') as outf:
         pickle.dump(model, outf)
