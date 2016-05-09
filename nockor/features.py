@@ -48,7 +48,7 @@ class Extractor(object):
         delta_t = self.delta_t
         t = delta_t * 2 + 1
         delta_den = sum(abs(i - delta_t) for i in range(t))
-        result = np.zeros((0, 2 * self.keep_m))
+        result = np.zeros((0, 3 * self.keep_m))
         nfft = self.nfft
         cmn_lambda = self.cmn_lambda
         while len(self.signal) >= self.window:
@@ -78,10 +78,10 @@ class Extractor(object):
                 ddelta += np.sign(i - delta_t) * self.delta[i]
             ddelta = delta / delta_den
             # cepstral mean subtraction
-            feat = self.feat[delta_t]
+            feat = self.feat[0]
             self.mfeat = (1 - cmn_lambda) * self.mfeat + cmn_lambda * feat
             feat = feat - self.mfeat
-            feat = np.concatenate((feat, delta))
+            feat = np.concatenate((feat, self.delta[0], ddelta))
             result = np.concatenate((result, np.reshape(feat, (1, len(feat)))))
         return result
 
@@ -89,4 +89,4 @@ class Extractor(object):
         if self.signal is None:
             self.signal = samples.astype('float')
         else:
-            self.signal = np.concatenate((self.signal, samples))
+            self.signal = np.append(self.signal, samples)
