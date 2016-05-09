@@ -13,6 +13,7 @@ class Recognizer(object):
     def __init__(self, model_dir, rate=16000, alpha=0.01):
         self.extractor = features.Extractor(rate=rate)
         self.alpha = alpha
+        self.prop = 0.0
         self.models = []
         self.mnames = []
         for entry in os.listdir(model_dir):
@@ -28,16 +29,24 @@ class Recognizer(object):
     def pump(self, data):
         alpha = self.alpha
         logprob = self.logprob
+        prop = self.prop
         X = self.extractor.pump(data)
         if len(X) == 0:
+            self.prop = (1- alpha) * prop
             self.logprob = (1 - alpha) * logprob
-            return (None, 0)
+            return (None, 0.0, self.prop)
         logprobs = np.array([m.score_samples(X)[0] for m in self.models]).T
         for logprob1 in logprobs:
+            prop = (1 - alpha) * prop + alpha
             logprob = (1 - alpha) * logprob + alpha * logprob1
         self.logprob = logprob
+        self.prop = prop
         i = np.argmax(logprob)
-        return (self.mnames[i], logprob[i])
+        prob = np.exp(logprob)
+        prob /= np.sum(prob)
+        if prop < 0.3 or prob[i] < 0.95:
+            return (None, 0.0, prop)
+        return (self.mnames[i], prob[i], self.prop)
 
 def main(argv=sys.argv):
     rate = 16000
@@ -60,9 +69,9 @@ def main(argv=sys.argv):
     while True:
         _, data = ain.read()
         data = np.frombuffer(data, dtype='int16')
-        mname, logprob = recog.pump(data)
+        mname, prob, prop = recog.pump(data)
         if mname is None: continue
-        print((time.time(), mname, logprob))
+        print((time.time(), mname, prob, prop))
 
     return 0
 
